@@ -116,6 +116,10 @@ if let capture = ISyslog.capture {
 
 `Example/iSyslogKitDemo.xcodeproj` is a small app that logs like a real one and shows the console. Select your team under Signing & Capabilities to run it on a device.
 
+## Privacy
+
+iSyslogKit doesn't collect or send any data. See the [privacy policy](PRIVACY.md), which also covers the iSyslog app.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
