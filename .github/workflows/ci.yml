@@ -6,8 +6,10 @@ on:
   pull_request:
 
 jobs:
-  test-macos:
-    name: Test (macOS)
+  # One job on purpose: macOS runners are often in short supply, and a second job can sit
+  # unassigned until GitHub cancels it.
+  test:
+    name: Test (macOS) and build (iOS)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -24,12 +26,6 @@ jobs:
           grep -E "recorded an issue|failed after" test-output.txt | head -20 | while IFS= read -r line; do
             echo "::error title=Test failure::${line}"
           done
-
-  build-ios:
-    name: Build (iOS)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
       - name: Build package for iOS
         run: xcodebuild -scheme iSyslogKit-Package -destination 'generic/platform=iOS' build
       - name: Build example app for iOS
