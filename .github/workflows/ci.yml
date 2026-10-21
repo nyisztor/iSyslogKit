@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-macos:
+    name: Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Test
+        run: swift test
+
+  build-ios:
+    name: Build (iOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build package for iOS
+        run: xcodebuild -scheme iSyslogKit-Package -destination 'generic/platform=iOS' build
+      - name: Build example app for iOS
+        run: xcodebuild -project Example/iSyslogKitDemo.xcodeproj -scheme iSyslogKitDemo -destination 'generic/platform=iOS Simulator' build
