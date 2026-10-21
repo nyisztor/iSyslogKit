@@ -1,5 +1,7 @@
 # iSyslogKit
 
+[![CI](https://github.com/nyisztor/iSyslogKit/actions/workflows/ci.yml/badge.svg)](https://github.com/nyisztor/iSyslogKit/actions/workflows/ci.yml)
+
 An in-app log console for iOS apps. See your app's logs on the device, filter them by severity, and share them as a file that testers can attach to a bug report.
 
 <img src="Docs/console.png" alt="The iSyslogKit console on iPhone" width="320">
