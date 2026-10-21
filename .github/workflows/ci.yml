@@ -10,17 +10,26 @@ jobs:
     name: Test (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Swift version
         run: swift --version
       - name: Test
-        run: swift test
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee test-output.txt
+      - name: Report failed tests
+        if: failure()
+        run: |
+          # One annotation per failed expectation, so failures are visible on the run page.
+          grep -E "recorded an issue|failed after" test-output.txt | head -20 | while IFS= read -r line; do
+            echo "::error title=Test failure::${line}"
+          done
 
   build-ios:
     name: Build (iOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build package for iOS
         run: xcodebuild -scheme iSyslogKit-Package -destination 'generic/platform=iOS' build
       - name: Build example app for iOS

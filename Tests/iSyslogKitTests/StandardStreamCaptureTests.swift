@@ -38,7 +38,8 @@ struct StandardStreamCaptureTests {
         let lines = try capture.start()
 
         // Drain the original destination so the tee never blocks on a full pipe.
-        let drain = Thread { var buf = [UInt8](repeating: 0, count: 4096); while read(target[0], &buf, buf.count) > 0 {} }
+        let destination = target[0]
+        let drain = Thread { var buf = [UInt8](repeating: 0, count: 4096); while read(destination, &buf, buf.count) > 0 {} }
         drain.start()
 
         let long = String(repeating: "x", count: StandardStreamCapture.maxLineLength + 10) + "\n"

@@ -90,7 +90,8 @@ struct LogCaptureTests {
         #expect(session.metadata.kitVersion == ISyslog.version)
         #if os(macOS)
         #expect(session.metadata.systemName == "macOS")
-        #expect(session.metadata.deviceModel.hasPrefix("Mac"))
+        // Real Macs report e.g. "Mac17,2"; virtual machines (like CI runners) "VirtualMac2,1".
+        #expect(session.metadata.deviceModel.contains("Mac"))
         #else
         #expect(["iOS", "iPadOS"].contains(session.metadata.systemName))
         #expect(session.metadata.deviceModel.hasPrefix("iPhone") || session.metadata.deviceModel.hasPrefix("iPad"))
