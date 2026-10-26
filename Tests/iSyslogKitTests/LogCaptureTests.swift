@@ -71,9 +71,39 @@ struct LogCaptureTests {
         try await capture.refresh()
 
         var iterator = updates.makeAsyncIterator()
-        let batch = try #require(await iterator.next())
-        #expect(batch.contains { $0.message == after })
-        #expect(!batch.contains { $0.message == before })
+        let update = try #require(await iterator.next())
+        #expect(!update.replacesEarlierEntries)
+        #expect(update.entries.contains { $0.message == after })
+        #expect(!update.entries.contains { $0.message == before })
+    }
+
+    // Lost entries would leave it waiting for updates that never come.
+    @Test(.timeLimit(.minutes(1)))
+    func slowSubscriberCatchesUpWithoutLosingEntries() async throws {
+        let capture = LogCapture(configuration: .init(activation: .always))
+        let (snapshot, updates) = await capture.subscribe(pendingUpdateLimit: 4)
+
+        // Far more batches than the subscriber can hold, while it isn't reading.
+        let start = Date()
+        for i in 0..<50 {
+            await capture.ingest([LogEntry(date: start.addingTimeInterval(Double(i)), level: .notice, message: "batch \(i)")])
+        }
+
+        // Applied the way a console does, the updates rebuild exactly what was captured.
+        var rebuilt = snapshot
+        var sawReplacement = false
+        var iterator = updates.makeAsyncIterator()
+        while rebuilt.count < 50, let update = await iterator.next() {
+            if update.replacesEarlierEntries {
+                sawReplacement = true
+                rebuilt = update.entries
+            } else {
+                rebuilt += update.entries
+            }
+        }
+        #expect(sawReplacement)
+        #expect(rebuilt.map(\.message) == (0..<50).map { "batch \($0)" })
+        #expect(rebuilt.map(\.message) == (await capture.entries).map(\.message))
     }
 
     @Test func exportWritesADecodableSession() async throws {

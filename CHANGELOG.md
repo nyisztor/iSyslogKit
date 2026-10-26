@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a live console that fell behind (more than 32 pending updates) silently lost entries. The capture now resends everything it holds when a subscriber's updates overflow.
+- Changed: `LogCapture.subscribe()` streams `LogCapture.Update` values instead of `[LogEntry]` batches. Check `replacesEarlierEntries`: when true, `entries` replaces everything received before. A new `pendingUpdateLimit` parameter (default 32) sets how many updates wait for a slow subscriber.
+
 ## 0.1.0
 
 First public release.

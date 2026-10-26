@@ -150,12 +150,17 @@ public final class ConsoleModel {
 
     // MARK: Private
 
-    private func follow(_ updates: AsyncStream<[LogEntry]>, capacity: Int) {
+    private func follow(_ updates: AsyncStream<LogCapture.Update>, capacity: Int) {
         updatesTask?.cancel()
         updatesTask = Task { [weak self] in
-            for await batch in updates {
+            for await update in updates {
                 guard let self else { return }
-                var updated = self.entries.mergingChronologically(batch)
+                // After falling behind, the capture resends everything rather than the lost batches.
+                if update.replacesEarlierEntries {
+                    self.entries = update.entries
+                    continue
+                }
+                var updated = self.entries.mergingChronologically(update.entries)
                 if updated.count > capacity { updated.removeFirst(updated.count - capacity) }
                 self.entries = updated
             }

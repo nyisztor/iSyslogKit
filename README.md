@@ -106,6 +106,28 @@ if let capture = ISyslog.capture {
 }
 ```
 
+To follow new entries as they arrive, subscribe. You get everything captured so far, then updates:
+
+```swift
+if let capture = ISyslog.capture {
+    let (current, updates) = await capture.subscribe()
+    var entries = current
+    await capture.startPolling()   // or call refresh() yourself
+    for await update in updates {
+        if update.replacesEarlierEntries {
+            entries = update.entries   // you fell behind: this is everything, start over from it
+        } else {
+            entries = entries.mergingChronologically(update.entries)
+        }
+    }
+}
+```
+
+Up to 32 updates wait while you're busy (`subscribe(pendingUpdateLimit:)` changes that). If more pile up, the oldest are dropped and an update with `replacesEarlierEntries` follows, so you never end up missing entries. Use `mergingChronologically` rather than appending: printed lines arrive right away, `Logger` messages with the next query, so batches can overlap in time.
+
+> [!NOTE]
+> Upgrading from 0.1: `subscribe()` used to stream `[LogEntry]` batches. It now streams `LogCapture.Update` values; read `update.entries`, and handle `replacesEarlierEntries` as above. See the [changelog](CHANGELOG.md).
+
 ## What it captures, and what it costs
 
 - **Captured:** your app's unified-log messages, `print` output, and messages Apple's frameworks log inside your process. The console hides Apple's messages unless you turn them on in its filter menu.

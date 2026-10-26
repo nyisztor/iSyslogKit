@@ -6,6 +6,25 @@ import iSyslogCore
 /// Queries are slow (about 1.5 s on device), so they run on a private serial queue and
 /// concurrent `refresh()` calls share one query instead of stacking up.
 public actor LogCapture {
+    /// What a subscription delivers after its initial snapshot.
+    public struct Update: Sendable {
+        /// New entries, oldest first; or, when `replacesEarlierEntries` is true, everything
+        /// captured so far.
+        public let entries: [LogEntry]
+        /// True after the subscriber fell behind and earlier updates were dropped: discard what
+        /// you have and use `entries` instead.
+        public let replacesEarlierEntries: Bool
+        /// Increases with every update, so the capture can tell whether a dropped update came
+        /// before or after the last replacement it sent.
+        let sequence: Int
+    }
+
+    private struct Subscriber {
+        let continuation: AsyncStream<Update>.Continuation
+        /// The newest replacement sent; dropped updates older than it are already covered.
+        var lastReplacement = -1
+    }
+
     public nonisolated let configuration: ISyslog.Configuration
 
     private var buffer: LogBuffer
@@ -13,7 +32,8 @@ public actor LogCapture {
     private let queue = DispatchQueue(label: "iSyslogKit.capture", qos: .utility)
     private var inFlight: Task<[LogEntry], Error>?
     private var pollingTask: Task<Void, Never>?
-    private var subscribers: [UUID: AsyncStream<[LogEntry]>.Continuation] = [:]
+    private var subscribers: [UUID: Subscriber] = [:]
+    private var nextSequence = 0
     /// Started synchronously from any thread, so guarded by a lock rather than the actor.
     private nonisolated let streamCaptures = LockedCaptures()
 
@@ -61,7 +81,27 @@ public actor LogCapture {
     func ingest(_ newEntries: [LogEntry]) {
         guard !newEntries.isEmpty else { return }
         buffer.append(contentsOf: newEntries)
-        for subscriber in subscribers.values { subscriber.yield(newEntries) }
+        for id in subscribers.keys {
+            send(Update(entries: newEntries, replacesEarlierEntries: false, sequence: takeSequence()), to: id)
+        }
+    }
+
+    /// Yields an update. If the subscriber's queue is full, the oldest pending update is dropped;
+    /// unless a later replacement already covers it, a new replacement follows with the whole
+    /// buffer, so the subscriber never ends up missing entries.
+    private func send(_ update: Update, to id: UUID) {
+        guard let subscriber = subscribers[id],
+              case .dropped(let dropped) = subscriber.continuation.yield(update),
+              dropped.sequence >= subscriber.lastReplacement else { return }
+        let replacement = Update(entries: buffer.entries, replacesEarlierEntries: true, sequence: takeSequence())
+        subscribers[id]?.lastReplacement = replacement.sequence
+        // Yielding it may drop another, older update; the replacement covers that one too.
+        _ = subscriber.continuation.yield(replacement)
+    }
+
+    private func takeSequence() -> Int {
+        defer { nextSequence += 1 }
+        return nextSequence
     }
 
     /// Starts capturing `print` output (and stderr, if configured) as entries.
@@ -106,12 +146,15 @@ public actor LogCapture {
         streamCaptures.stopAll()
     }
 
-    /// Everything captured so far plus a stream of the batches that follow, taken in one step
+    /// Everything captured so far plus a stream of the updates that follow, taken in one step
     /// so no batch is missed or delivered twice. The stream ends when the caller stops iterating.
-    public func subscribe() -> (entries: [LogEntry], updates: AsyncStream<[LogEntry]>) {
+    ///
+    /// Up to `pendingUpdateLimit` updates wait for a slow subscriber. Beyond that, older ones are
+    /// dropped and an update that replaces everything follows (see `Update.replacesEarlierEntries`).
+    public func subscribe(pendingUpdateLimit: Int = 32) -> (entries: [LogEntry], updates: AsyncStream<Update>) {
         let id = UUID()
-        let (stream, continuation) = AsyncStream<[LogEntry]>.makeStream(bufferingPolicy: .bufferingNewest(32))
-        subscribers[id] = continuation
+        let (stream, continuation) = AsyncStream<Update>.makeStream(bufferingPolicy: .bufferingNewest(max(pendingUpdateLimit, 1)))
+        subscribers[id] = Subscriber(continuation: continuation)
         continuation.onTermination = { [weak self] _ in
             Task { await self?.removeSubscriber(id) }
         }
