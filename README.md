@@ -23,7 +23,7 @@ https://github.com/nyisztor/iSyslogKit
 Or in `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/nyisztor/iSyslogKit", from: "0.1.0")
+.package(url: "https://github.com/nyisztor/iSyslogKit", from: "0.2.0")
 ```
 
 Then link the `iSyslogKit` product to your app target.

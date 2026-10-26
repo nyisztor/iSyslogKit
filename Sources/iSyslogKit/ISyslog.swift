@@ -12,7 +12,7 @@ import StoreKit
 /// ```
 @MainActor
 public enum ISyslog {
-    public nonisolated static let version = "0.1.0"
+    public nonisolated static let version = "0.2.0"
 
     public struct Configuration: Sendable {
         /// Which builds capture logs. Release builds from the App Store should normally not.
